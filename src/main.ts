@@ -16,20 +16,10 @@ import { logDir } from '../app.config';
 
 dotenv.config();
 const channelsWatch: string[] = [
-    '1057919252922892298', // bot channel
-
-    // MSFS
-    '983629937451892766', // fs news channel 1
-    '1058110232972247103', // fs news channel 2
-    '1060032674988826664', // fs news manual sync
-    '1061038884143763538', // fs group
-
-    // Other Games
-    '1059769292717039626', // imas news channel
-    '1069820588538986536', // kancolle news channel
+    '1069108285552210032', // bot channel
 ];
 if (process.env.WEBPACK_BUILD_ENV === 'dev') {
-    channelsWatch.push('1061924579100078090');
+    channelsWatch.push('1069108285552210032');
 }
 const logger = winston.createLogger({
     level: 'info',
@@ -61,7 +51,14 @@ if (!process.env.DISCORD_TOKEN) {
             ? fs.readFileSync(process.env.DISCORD_TOKEN_FILE, 'utf-8')
             : '';
 }
-const { DISCORD_TOKEN, KOOK_BOT_API_BASE } = process.env;
+if (!process.env.PUSH_DEER) {
+    process.env.PUSH_DEER =
+        !!process.env.PUSH_DEER_FILE &&
+        fs.existsSync(process.env.PUSH_DEER_FILE)
+            ? fs.readFileSync(process.env.PUSH_DEER_FILE, 'utf-8')
+            : '';
+}
+const { PUSH_DEER, DISCORD_TOKEN, KOOK_BOT_API_BASE } = process.env;
 
 // ============================================================================
 
@@ -142,6 +139,10 @@ async function createClient(): Promise<void> {
     // We use 'c' for the event parameter to keep it separate from the already defined 'client'
     client.once(Events.ClientReady, (c) => {
         console.log(`Ready! Logged in as ${c.user.tag}`);
+        let success_text = `Ready! Logged in as ${c.user.tag}`;
+        axios.post(
+            `${PUSH_DEER}&text=`+success_text,
+        );
     });
 
     client.on(Events.Error, (e) => {
@@ -153,7 +154,12 @@ async function createClient(): Promise<void> {
         if (message.system) return;
         if (message.type !== 0) return;
         if (!channelsWatch.includes(`${message.channelId}`)) return;
-
+        // console.log(message);
+        message.author.username = message.author.username.replace(" • TweetShift","");
+        // console.log(message);
+        await axios.post(
+            `${PUSH_DEER}&text=Message\ from ` + message.author.username,
+        );
         await axios.post(
             `${KOOK_BOT_API_BASE}/sync-discord-message`,
             getPostDataFromMessage(message, Events.MessageCreate)
@@ -238,6 +244,9 @@ async function clientLogin(): Promise<string> {
         .run()
         .catch((err) => {
             logger.error(err);
+            axios.post(
+                `${PUSH_DEER}&text=Error\ occurs!&desp=`+err+`&type=markdown`
+            );
             console.log('\n');
             console.error(err);
         });
